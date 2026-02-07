@@ -1,6 +1,7 @@
 import Button from "@/components/common/Button";
 import { Text, View } from "@/components/Themed";
 import Colors from "@/constants/Colors";
+import { router } from "expo-router";
 import { Image, StyleSheet, useColorScheme } from "react-native";
 
 export default function LandingPage() {
@@ -20,8 +21,17 @@ export default function LandingPage() {
                 QuickStock keeps your stock updated, organized, and ready—no spreadsheets required.
             </Text>
             <View style={styles.auth_button_container}>
-                <Button containerStyle={styles.auth_button} title="Sign Up" />
-                <Button variant="outline" containerStyle={styles.auth_button} title="Log In" />
+                <Button
+                    containerStyle={styles.auth_button}
+                    title="Sign Up"
+                    onPress={() => {router.push("/signup")}}
+                />
+                <Button
+                    variant="outline"
+                    containerStyle={styles.auth_button}
+                    title="Log In"
+                    onPress={() => {router.push("/login")}}
+                />
             </View>
         </View>
     )

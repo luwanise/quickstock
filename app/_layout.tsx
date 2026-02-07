@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { getScreenOptions } from '@/constants/Navigations';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -52,9 +53,26 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name='landing' options={{ headerShown: false }} />
-        <Stack.Screen name='login' />
+        <Stack.Screen
+          name='login'
+          options={{
+            ...getScreenOptions(colorScheme),
+            title: 'LOGIN'
+          }}
+        />
+        <Stack.Screen
+          name='signup'
+          options={{
+            ...getScreenOptions(colorScheme),
+            title: 'SIGN UP'
+          }}
+        />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="checkout" options={{
+          ...getScreenOptions(colorScheme),
+          title: 'CHECKOUT',
+          presentation: 'modal'
+        }}/>
       </Stack>
     </ThemeProvider>
   );

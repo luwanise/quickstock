@@ -6,10 +6,11 @@ import { Link, router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, useColorScheme } from "react-native";
 
-export default function LoginPage() {
+export default function SignupPage() {
     const colorScheme = useColorScheme();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
 
     return (
         <View
@@ -17,7 +18,9 @@ export default function LoginPage() {
             darkColor={Colors[colorScheme ?? 'dark'].background}
             style={styles.container}
         >
-            <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].tint }]}>WELCOME BACK!</Text>
+            <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].tint }]}>
+                READY FOR A NEW JOURNEY?
+            </Text>
             <View style={styles.form}>
                 <Text style={styles.textInputHeader}>EMAIL</Text>
                 <CustomTextInput
@@ -33,26 +36,30 @@ export default function LoginPage() {
                     onChangeText={setPassword}
                     secureTextEntry
                 />
-                <Text style={[styles.forgotPassword, { color: Colors[colorScheme ?? 'light'].tint }]}>
-                    FORGOT YOUR PASSWORD?
-                </Text>
+                <Text style={styles.textInputHeader}>CONFIRM PASSWORD</Text>
+                <CustomTextInput
+                    placeholder="Confirm Password"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry
+                />
                 <Button
-                    containerStyle={styles.loginButton}
-                    title="LOGIN"
+                    containerStyle={styles.signupButton}
+                    title="SIGN UP"
                     onPress={() => {router.push("/(tabs)")}}
                 />
                 <Link
-                    href="/signup"
-                    style={[styles.createAccount, { color: Colors[colorScheme ?? 'light'].tint }]}
+                    href="/login"
+                    style={[styles.haveAnAccount, { color: Colors[colorScheme ?? 'light'].tint }]}
                     replace
                 >
-                    CREATE NEW ACCOUNT
+                    ALREADY HAVE AN ACCOUNT?
                 </Link>
             </View>
             <View style={styles.continueWith}>
-                <Text>OR CONTINUE WITH</Text>
+                <Text>OR SIGN UP WITH</Text>
                 <Button
-                    containerStyle={styles.googleLogin}
+                    containerStyle={styles.googleSignup}
                     title="GOOGLE"
                     iconName="google"
                     onPress={() => {router.push("/(tabs)")}}
@@ -80,15 +87,11 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         fontWeight: "500"
     },
-    forgotPassword: {
-        textAlign: "right",
-        fontWeight: "500",
-    },
-    loginButton: {
+    signupButton: {
         width: "100%",
         marginTop: 20
     },
-    createAccount: {
+    haveAnAccount: {
         textAlign: "center",
         fontWeight: "500",
         marginTop: 20
@@ -97,7 +100,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         width: "100%"
     },
-    googleLogin: {
+    googleSignup: {
         width: "100%",
         marginTop: 20,
         marginBottom: 40

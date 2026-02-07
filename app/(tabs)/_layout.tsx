@@ -6,6 +6,7 @@ import { Pressable } from 'react-native';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { getScreenOptions } from '@/constants/Navigations';
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -21,15 +22,11 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        ...getScreenOptions(colorScheme),
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
-        headerTitleAlign: 'center',
-        headerTitleStyle: { fontSize: 17 },
-        headerShadowVisible: false,
-        headerStatusBarHeight: 30,
-        headerStyle: { backgroundColor: Colors[colorScheme ?? 'light'].background },
       }}>
       <Tabs.Screen
         name="index"

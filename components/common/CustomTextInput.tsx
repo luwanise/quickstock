@@ -10,6 +10,7 @@ interface CustomTextInputProps {
     onChangeText: (value: any) => void
     inputMode?: InputModeOptions
     iconName?: ComponentProps<typeof MaterialIcons>['name'];
+    secureTextEntry?: boolean
 }
 
 export default function CustomTextInput(props: CustomTextInputProps) {
@@ -31,12 +32,13 @@ export default function CustomTextInput(props: CustomTextInputProps) {
                 />
             )}
             <TextInput
-                style={{ color: colorScheme === "dark" ? "#fff" : "#000", width: "100%" }}
+                style={{ color: Colors[colorScheme ?? 'light'].text, width: "100%" }}
                 placeholder={props.placeholder}
                 placeholderTextColor="#ccc"
                 value={props.value}
                 onChangeText={props.onChangeText}
                 inputMode={props.inputMode}
+                secureTextEntry={props.secureTextEntry}
             />
         </View>
     )
