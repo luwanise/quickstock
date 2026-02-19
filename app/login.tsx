@@ -2,6 +2,7 @@ import Button from "@/components/common/Button";
 import CustomTextInput from "@/components/common/CustomTextInput";
 import { Text, View } from "@/components/Themed";
 import Colors from "@/constants/Colors";
+import { login } from "@/services/auth.service";
 import { Link, router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, useColorScheme } from "react-native";
@@ -10,6 +11,21 @@ export default function LoginPage() {
     const colorScheme = useColorScheme();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const onLogin = async () => {
+        setIsLoading(true);
+        const result = await login(email, password);
+        setIsLoading(false);
+        
+        if (result.error) {
+            alert(result.error.message);
+            return;
+        }
+
+        console.log("User:",result.data.user);
+        router.push("/(tabs)");
+    }
 
     return (
         <View
@@ -38,8 +54,9 @@ export default function LoginPage() {
                 </Text>
                 <Button
                     containerStyle={styles.loginButton}
-                    title="LOGIN"
-                    onPress={() => {router.push("/(tabs)")}}
+                    title={isLoading ? "LOADING..." : "LOG IN"}
+                    onPress={onLogin}
+                    disabled={isLoading}
                 />
                 <Link
                     href="/signup"
@@ -55,7 +72,7 @@ export default function LoginPage() {
                     containerStyle={styles.googleLogin}
                     title="GOOGLE"
                     iconName="google"
-                    onPress={() => {router.push("/(tabs)")}}
+                    onPress={() => {}}
                 />
             </View>
         </View>

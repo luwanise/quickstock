@@ -12,6 +12,7 @@ interface ButtonProps {
     containerStyle?: StyleProp<ViewStyle>;
     textStyle?: StyleProp<TextStyle>;
     iconName?: ComponentProps<typeof MaterialCommunityIcons>['name'];
+    disabled?: boolean
 }
 
 export default function Button(
@@ -22,13 +23,14 @@ export default function Button(
         containerStyle,
         textStyle,
         iconName,
+        disabled,
     }: ButtonProps
 ) {
     const colorScheme = useColorScheme();
     const buttonStyles = getVariantStyles(variant, colorScheme);
 
     return (
-        <TouchableOpacity activeOpacity={0.7} style={containerStyle} onPress={onPress}>
+        <TouchableOpacity activeOpacity={0.7} style={containerStyle} onPress={onPress} disabled={disabled}>
             <View style={[styles.container, buttonStyles.container]}>
                 {iconName && (
                     <MaterialCommunityIcons

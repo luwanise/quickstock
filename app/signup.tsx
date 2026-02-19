@@ -2,6 +2,7 @@ import Button from "@/components/common/Button";
 import CustomTextInput from "@/components/common/CustomTextInput";
 import { Text, View } from "@/components/Themed";
 import Colors from "@/constants/Colors";
+import { signUp } from "@/services/auth.service";
 import { Link, router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, useColorScheme } from "react-native";
@@ -11,6 +12,26 @@ export default function SignupPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const onSignUp = async() => {
+        if (password !== confirmPassword) {
+            alert('Passwords do not match');
+            return;
+        }
+        
+        setIsLoading(true);
+        const result = await signUp(email, password);
+        setIsLoading(false);
+        
+        if (result.error) {
+            alert(result.error.message);
+            return;
+        }
+
+        console.log("User:",result.data.user);
+        router.push("/(tabs)");
+    }
 
     return (
         <View
@@ -45,8 +66,9 @@ export default function SignupPage() {
                 />
                 <Button
                     containerStyle={styles.signupButton}
-                    title="SIGN UP"
-                    onPress={() => {router.push("/(tabs)")}}
+                    title={isLoading && "LOADING..." || "SIGN UP"}
+                    onPress={onSignUp}
+                    disabled={isLoading}
                 />
                 <Link
                     href="/login"

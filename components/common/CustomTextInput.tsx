@@ -1,7 +1,7 @@
 import Colors from "@/constants/Colors";
 import { MaterialIcons } from "@expo/vector-icons";
-import { ComponentProps } from "react";
-import { InputModeOptions, StyleSheet, TextInput, useColorScheme } from "react-native";
+import { ComponentProps, useState } from "react";
+import { InputModeOptions, StyleSheet, TextInput, TouchableOpacity, useColorScheme } from "react-native";
 import { View } from "../Themed";
 
 interface CustomTextInputProps {
@@ -15,6 +15,7 @@ interface CustomTextInputProps {
 
 export default function CustomTextInput(props: CustomTextInputProps) {
     const colorScheme = useColorScheme();
+    const [showPassword, setShowPassword] = useState(false);
 
     return (
         <View style={[
@@ -32,14 +33,23 @@ export default function CustomTextInput(props: CustomTextInputProps) {
                 />
             )}
             <TextInput
-                style={{ color: Colors[colorScheme ?? 'light'].text, width: "100%" }}
+                style={{ color: Colors[colorScheme ?? 'light'].text, flex: 1 }}
                 placeholder={props.placeholder}
                 placeholderTextColor="#ccc"
                 value={props.value}
                 onChangeText={props.onChangeText}
                 inputMode={props.inputMode}
-                secureTextEntry={props.secureTextEntry}
+                secureTextEntry={props.secureTextEntry && !showPassword}
             />
+            {props.secureTextEntry && (
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <MaterialIcons
+                        name={showPassword ? "visibility-off" : "visibility"}
+                        size={20}
+                        color={Colors[colorScheme ?? 'light'].tint}
+                    />
+                </TouchableOpacity>
+            )}
         </View>
     )
 }
