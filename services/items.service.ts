@@ -22,7 +22,6 @@ export async function getItemById(id: string) {
     .eq('id', id)
     .single();
 
-  console.log("Data:", data);
   return { data, error };
 }
 

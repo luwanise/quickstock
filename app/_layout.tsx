@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { getScreenOptions } from '@/constants/Navigations';
 import { AuthProvider } from '@/context/AuthContext';
+import { CartProvider } from '@/context/CartContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -44,7 +45,7 @@ export default function RootLayout() {
     return null;
   }
 
-  return <AuthProvider><RootLayoutNav /></AuthProvider>;
+  return <AuthProvider><CartProvider><RootLayoutNav /></CartProvider></AuthProvider>;
 }
 
 function RootLayoutNav() {
@@ -77,6 +78,11 @@ function RootLayoutNav() {
         <Stack.Screen name="items/edit/[id]" options={{
           ...getScreenOptions(colorScheme),
           title: 'EDIT ITEM',
+          presentation: 'modal'
+        }}/>
+        <Stack.Screen name="cart/[id]" options={{
+          ...getScreenOptions(colorScheme),
+          title: 'CART',
           presentation: 'modal'
         }}/>
       </Stack>

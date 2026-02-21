@@ -47,7 +47,7 @@ export const cartService = {
     },
 
     // Get cart details with items
-    async getCartWithItems(cartId: number) {
+    async getCartWithItems(cartId: String) {
         try {
             const { data, error } = await supabase
                 .from('carts')
@@ -142,7 +142,7 @@ export const cartService = {
     },
 
     // Remove item from cart
-    async removeFromCart(cartItemId: number, cartId: number) {
+    async removeFromCart(cartItemId: string, cartId: string) {
         try {
             const { error } = await supabase
                 .from('cart_items')
@@ -161,7 +161,7 @@ export const cartService = {
     },
 
     // Update cart total
-    async updateCartTotal(cartId: number) {
+    async updateCartTotal(cartId: string) {
         try {
             const { data: items } = await supabase
                 .from('cart_items')
@@ -185,7 +185,7 @@ export const cartService = {
     },
 
     // Complete cart (payment received)
-    async completeCart(cartId: number, reduceInventory: boolean = true) {
+    async completeCart(cartId: string, reduceInventory: boolean = true) {
         try {
             // Start a transaction
             if (reduceInventory) {
@@ -230,7 +230,7 @@ export const cartService = {
     },
 
     // Delete/cancel cart
-    async deleteCart(cartId: number) {
+    async deleteCart(cartId: string) {
         try {
             const { error } = await supabase
                 .from('carts')

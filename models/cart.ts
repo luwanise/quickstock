@@ -1,7 +1,7 @@
 export type CartStatus = 'active' | 'completed' | 'cancelled';
 
 export interface Cart {
-    id: number;
+    id: string;
     user_id: string;
     customer_name: string;
     status: CartStatus;
@@ -21,8 +21,8 @@ export interface NewCart {
 
 export interface CartItem {
     id: number;
-    cart_id: number;
-    item_id: number;
+    cart_id: string;
+    item_id: string;
     quantity: number;
     price_at_time: number;
     subtotal: number;
@@ -34,18 +34,18 @@ export interface CartItem {
 }
 
 export interface AddToCartPayload {
-    cart_id: number;
-    item_id: number;
+    cart_id: string;
+    item_id: string;
     quantity: number;
 }
 
 export interface UpdateCartItemPayload {
-    cart_item_id: number;
+    cart_item_id: string;
     quantity: number;
 }
 
 export interface CompleteCartPayload {
-    cart_id: number;
+    cart_id: string;
     // Optionally reduce inventory immediately or after payment confirmation
     reduce_inventory?: boolean;
 }
