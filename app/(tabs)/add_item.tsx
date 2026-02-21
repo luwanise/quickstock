@@ -3,6 +3,9 @@ import { StyleSheet } from 'react-native';
 import Button from '@/components/common/Button';
 import CustomTextInput from '@/components/common/CustomTextInput';
 import { Text, View } from '@/components/Themed';
+import { useAuth } from '@/hooks/useAuth';
+import { Item } from '@/models/item';
+import { insertItem } from '@/services/items.service';
 import { useState } from 'react';
 
 export default function AddItemScreen() {
@@ -10,6 +13,32 @@ export default function AddItemScreen() {
   const [stockQuantity, setStockQuantity] = useState("");
   const [lowStockThreshold, setLowStockThreshold] = useState("");
   const [price, setPrice] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { session } = useAuth();
+
+  const onAddItem = async () => {
+    setIsLoading(true);
+    const newItem: Item = {
+      item_name: itemName,
+      stock_quantity: parseInt(stockQuantity),
+      low_stock_threshold: parseInt(lowStockThreshold),
+      price: parseFloat(price),
+      user_id: session?.user.id
+    }
+    const result = await insertItem(newItem);
+    setIsLoading(false);
+    
+    if (result.error) {
+      alert(result.error.message);
+      return;
+    }
+
+    alert('Item added successfully!');
+    setItemName('');
+    setStockQuantity('');
+    setLowStockThreshold('');
+    setPrice('');
+  }
 
   return (
     <View style={styles.container}>
@@ -44,7 +73,11 @@ export default function AddItemScreen() {
         />
       </View>
       <View style={styles.footer}>
-        <Button title='+ ADD ITEM' />
+        <Button
+          title={isLoading && 'ADDING ITEM...' || '+ ADD ITEM'}
+          onPress={onAddItem}
+          disabled={isLoading}
+        />
       </View>
     </View>
   );

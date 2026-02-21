@@ -23,7 +23,6 @@ export default function LoginPage() {
             return;
         }
 
-        console.log("User:",result.data.user);
         router.push("/(tabs)");
     }
 
