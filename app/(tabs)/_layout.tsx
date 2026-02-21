@@ -58,6 +58,13 @@ export default function TabLayout() {
             tabBarIcon: ({ color }) => <TabBarIcon name="add" color={color} />,
           }}
         />
+        <Tabs.Screen
+          name="list_items"
+          options={{
+            title: 'ITEMS',
+            tabBarIcon: ({ color }) => <TabBarIcon name="list" color={color} />,
+          }}
+        />
       </Tabs>
     </ProtectedRoute>
   );

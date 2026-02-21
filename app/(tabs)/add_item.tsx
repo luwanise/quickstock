@@ -4,7 +4,7 @@ import Button from '@/components/common/Button';
 import CustomTextInput from '@/components/common/CustomTextInput';
 import { Text, View } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
-import { Item } from '@/models/item';
+import { NewItem } from '@/models/item';
 import { insertItem } from '@/services/items.service';
 import { useState } from 'react';
 
@@ -18,7 +18,7 @@ export default function AddItemScreen() {
 
   const onAddItem = async () => {
     setIsLoading(true);
-    const newItem: Item = {
+    const newItem: NewItem = {
       item_name: itemName,
       stock_quantity: parseInt(stockQuantity),
       low_stock_threshold: parseInt(lowStockThreshold),
