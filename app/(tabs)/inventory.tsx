@@ -10,7 +10,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { FlatList, StyleSheet } from 'react-native';
 
-export default function ListItemsScreen() {
+export default function InventoryScreen() {
   const [items, setItems] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);

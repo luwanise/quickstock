@@ -42,6 +42,5 @@ export async function deleteItem(id: string) {
     .delete()
     .eq("id", id);
 
-  console.log("Data:", data);
   return { data, error };
 }

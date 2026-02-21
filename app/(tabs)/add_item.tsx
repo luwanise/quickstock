@@ -137,14 +137,6 @@ export default function AddItemScreen() {
         contentContainerStyle={styles.scrollContent}
         bounces={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Add New Item</Text>
-          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-            Fill in the details below to add a new item to your inventory
-          </Text>
-        </View>
-
         {/* Form */}
         <View style={styles.form}>
           {/* Item Name */}
@@ -266,21 +258,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 100,
-  },
-  header: {
-    marginBottom: 24,
-    backgroundColor: 'transparent',
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
   },
   form: {
     flex: 1,
