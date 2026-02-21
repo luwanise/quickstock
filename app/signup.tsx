@@ -8,12 +8,12 @@ import { signUp } from "@/services/auth.service";
 import { Link, router } from "expo-router";
 import { useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-    useColorScheme
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  useColorScheme
 } from "react-native";
 
 export default function SignupPage() {
@@ -62,7 +62,7 @@ export default function SignupPage() {
     }
   );
 
-  const showSnackbar = (message: string, type: 'success' | 'error' | 'info' = 'error') => {
+  const showSnackbar = (message: string, type: SnackBarType = 'error') => {
     setSnackbar({ visible: true, message, type });
   };
 

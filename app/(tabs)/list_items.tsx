@@ -34,6 +34,10 @@ export default function ListItemsScreen() {
     setItems(result.data || []);
   };
 
+  const handleDelete = useCallback((deletedItemId: string) => {
+    setItems(prev => prev.filter(item => item.id !== deletedItemId));
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadItems();
@@ -50,7 +54,12 @@ export default function ListItemsScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => <ItemCard item={item} />}
+        renderItem={({ item }) => (
+          <ItemCard 
+            item={item} 
+            onDelete={() => handleDelete(item.id)}
+          />
+        )}
         ListEmptyComponent={
           isLoading ? (
             <Loading text="Loading items" />

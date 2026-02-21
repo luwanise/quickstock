@@ -74,6 +74,11 @@ function RootLayoutNav() {
           title: 'CHECKOUT',
           presentation: 'modal'
         }}/>
+        <Stack.Screen name="items/edit/[id]" options={{
+          ...getScreenOptions(colorScheme),
+          title: 'EDIT ITEM',
+          presentation: 'modal'
+        }}/>
       </Stack>
     </ThemeProvider>
   );
