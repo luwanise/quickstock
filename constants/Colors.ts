@@ -14,7 +14,7 @@ export default {
   light: {
     text: '#000',
     textSecondary: '#666',
-    background: '#fff',
+    background: '#f8f9fa',
     tint: tintColorLight,
     tintText: '#fff',
     danger: dangerColorLight,
@@ -28,7 +28,7 @@ export default {
   dark: {
     text: '#fff',
     textSecondary: '#aaa',
-    background: '#1c1c1e',
+    background: '#202020',
     tint: tintColorDark,
     tintText: '#000',
     danger: dangerColorDark,

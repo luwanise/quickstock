@@ -79,7 +79,7 @@ export default function ItemCard({ item }: ItemCardProps) {
       <View style={styles.footer}>
         <Text style={[styles.priceLabel, { color: theme.textSecondary }]}>Price:</Text>
         <Text style={[styles.price, { color: theme.tint }]}>
-          ₦{item.price.toLocaleString()}
+          ${item.price.toLocaleString()}
         </Text>
       </View>
     </RNView>
