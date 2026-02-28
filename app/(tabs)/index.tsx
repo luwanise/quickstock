@@ -6,10 +6,11 @@ import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
 import { Action, QuickActions } from '@/components/dashboard/QuickActions';
 import { RecentActivityCard } from '@/components/dashboard/RecentActivityCard';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { View } from '@/components/Themed';
+import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/hooks/useAuth';
+import { Cart } from '@/models/cart';
 import { Item } from '@/models/item';
 import { cartService } from '@/services/cart.service';
 import { router } from 'expo-router';
@@ -25,8 +26,6 @@ import {
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
-const CARD_MARGIN = 8;
-const CARD_WIDTH = (width - 48) / 2; // 2 columns with padding
 
 interface DashboardStats {
   totalCarts: number;
@@ -34,6 +33,9 @@ interface DashboardStats {
   totalRevenue: number;
   averageCartValue: number;
   pendingLowStock: number;
+  revenueToday: number;
+  revenueThisWeek: number;
+  revenueThisMonth: number;
 }
 
 interface Activity {
@@ -57,12 +59,16 @@ export default function DashboardScreen() {
     totalRevenue: 0,
     averageCartValue: 0,
     pendingLowStock: 0,
+    revenueToday: 0,
+    revenueThisWeek: 0,
+    revenueThisMonth: 0,
   });
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [allCarts, setAllCarts] = useState<Cart[]>([]);
 
   const loadDashboardData = useCallback(async () => {
     if (!session?.user?.id) return;
@@ -70,7 +76,15 @@ export default function DashboardScreen() {
     try {
       setError(null);
       
-      // Load carts
+      // Load all carts (completed and active) for revenue calculations
+      const { data: allCartsData, error: allCartsError } = await cartService.getAllCarts(
+        session.user.id
+      );
+      
+      if (allCartsError) throw allCartsError;
+      setAllCarts(allCartsData || []);
+
+      // Load active carts separately for the CartContext
       await loadCarts();
 
       // Load items for low stock alerts
@@ -82,32 +96,70 @@ export default function DashboardScreen() {
       if (itemsError) throw itemsError;
       setItems(itemsData || []);
 
-      // Calculate stats - use the latest carts data
-      const activeCarts = carts.filter(c => c.status === 'active');
-      const completedToday = carts.filter(c => {
-        if (!c.completed_at) return false;
-        const today = new Date().toDateString();
-        return new Date(c.completed_at).toDateString() === today;
-      });
+      // Get today's date boundaries
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+      
+      // Get week boundaries (last 7 days)
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).toISOString();
+      
+      // Get month boundaries
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
-      const totalRevenue = carts.reduce((sum, cart) => sum + cart.total_amount, 0);
+      // Calculate stats using all carts data
+      const activeCarts = allCartsData?.filter(c => c.status === 'active') || [];
+      
+      const completedToday = allCartsData?.filter(c => {
+        if (!c.completed_at) return false;
+        return c.completed_at >= todayStart && c.completed_at < todayEnd;
+      }) || [];
+
+      // Revenue calculations
+      const totalRevenue = allCartsData?.reduce((sum, cart) => sum + (cart.total_amount || 0), 0) || 0;
+      
+      const revenueToday = allCartsData?.filter(c => 
+        c.completed_at && c.completed_at >= todayStart && c.completed_at < todayEnd
+      ).reduce((sum, cart) => sum + (cart.total_amount || 0), 0) || 0;
+      
+      const revenueThisWeek = allCartsData?.filter(c => 
+        c.completed_at && c.completed_at >= weekStart
+      ).reduce((sum, cart) => sum + (cart.total_amount || 0), 0) || 0;
+      
+      const revenueThisMonth = allCartsData?.filter(c => 
+        c.completed_at && c.completed_at >= monthStart && c.completed_at <= monthEnd
+      ).reduce((sum, cart) => sum + (cart.total_amount || 0), 0) || 0;
+
       const lowStockItems = itemsData?.filter(
         item => item.stock_quantity <= item.low_stock_threshold
       ) || [];
+      
+      // Calculate average cart value based on completed carts only (more accurate)
+      const completedCarts = allCartsData?.filter(c => c.status === 'completed') || [];
+      const totalCompletedRevenue = completedCarts.reduce((sum, cart) => sum + (cart.total_amount || 0), 0);
+      const averageCartValue = completedCarts.length > 0 
+        ? Math.round(totalCompletedRevenue / completedCarts.length) 
+        : 0;
       
       setStats({
         totalCarts: activeCarts.length,
         completedToday: completedToday.length,
         totalRevenue,
-        averageCartValue: activeCarts.length > 0 
-          ? Math.round(totalRevenue / activeCarts.length) 
-          : 0,
+        averageCartValue,
         pendingLowStock: lowStockItems.length,
+        revenueToday,
+        revenueThisWeek,
+        revenueThisMonth,
       });
 
-      // Generate recent activity from real cart data
-      const activities: Activity[] = carts
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      // Generate recent activity from all cart data (mix of active and completed)
+      const activities: Activity[] = (allCartsData || [])
+        .sort((a, b) => {
+          const dateA = new Date(a.completed_at || a.created_at);
+          const dateB = new Date(b.completed_at || b.created_at);
+          return dateB.getTime() - dateA.getTime();
+        })
         .slice(0, 5)
         .map((cart) => ({
           id: cart.id,
@@ -126,7 +178,7 @@ export default function DashboardScreen() {
     } finally {
       setIsInitialLoad(false);
     }
-  }, [session?.user?.id, carts, loadCarts]);
+  }, [session?.user?.id, loadCarts]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -180,7 +232,8 @@ export default function DashboardScreen() {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays === 1) return 'Yesterday';
-    return `${diffDays}d ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
   };
 
   const quickActions: Action[] = [
@@ -205,12 +258,12 @@ export default function DashboardScreen() {
   ];
 
   // Show loading only on initial load
-  if (isInitialLoad && cartsLoading && carts.length === 0) {
+  if (isInitialLoad && cartsLoading && carts.length === 0 && allCarts.length === 0) {
     return <Loading text="Loading dashboard..." />;
   }
 
   // Show error state
-  if (error && carts.length === 0) {
+  if (error && carts.length === 0 && allCarts.length === 0) {
     return (
       <ScrollView
         style={[styles.container, { backgroundColor: theme.background }]}
@@ -258,17 +311,13 @@ export default function DashboardScreen() {
         notificationCount={stats.pendingLowStock}
       />
 
-      {/* Stats Grid - Now in 2x2 layout */}
+      {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <View style={styles.statsRow}>
           <StatCard
             title="Active Carts"
             value={stats.totalCarts}
             icon="cart-outline"
-            trend={stats.totalCarts > 0 ? { 
-              value: Math.round((stats.totalCarts / (carts.length || 1)) * 100), 
-              isPositive: true 
-            } : undefined}
             onPress={() => router.push('/checkout')}
             containerStyle={styles.statCardLeft}
           />
@@ -276,46 +325,61 @@ export default function DashboardScreen() {
             title="Completed Today"
             value={stats.completedToday}
             icon="calendar-check"
-            trend={stats.completedToday > 0 ? { 
-              value: stats.completedToday, 
-              isPositive: true 
-            } : undefined}
             containerStyle={styles.statCardRight}
           />
         </View>
 
         <View style={styles.statsRow}>
           <StatCard
-            title="Revenue"
-            value={`$${stats.totalRevenue.toLocaleString()}`}
-            icon="cash"
-            trend={stats.totalRevenue > 0 ? { 
-              value: 100, 
-              isPositive: true 
-            } : undefined}
+            title="Avg. Cart Value"
+            value={`$${stats.averageCartValue.toLocaleString()}`}
+            icon="shopping"
             containerStyle={styles.statCardLeft}
           />
           <StatCard
-            title="Avg. Cart"
-            value={`$${stats.averageCartValue.toLocaleString()}`}
-            icon="shopping"
+            title="Low Stock Items"
+            value={stats.pendingLowStock}
+            icon="alert-circle"
             containerStyle={styles.statCardRight}
           />
         </View>
       </View>
 
-      {/* Key Metric Highlight for better visibility */}
-      {stats.totalRevenue > 0 && (
-        <View style={styles.keyMetricContainer}>
-          <StatCard
-            title="Total Revenue (All Time)"
-            value={`$${stats.totalRevenue.toLocaleString()}`}
-            icon="cash-multiple"
-            size="large"
-            containerStyle={styles.keyMetricCard}
-          />
+      {/* Revenue Section */}
+      <View style={styles.sectionContainer}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Revenue Overview</Text>
+        <View style={styles.statsGrid}>
+          <View style={styles.statsRow}>
+            <StatCard
+              title="Today"
+              value={`$${stats.revenueToday.toLocaleString()}`}
+              icon="cash-fast"
+              containerStyle={styles.statCardLeft}
+            />
+            <StatCard
+              title="This Week"
+              value={`$${stats.revenueThisWeek.toLocaleString()}`}
+              icon="cash"
+              containerStyle={styles.statCardRight}
+            />
+          </View>
+          
+          <View style={styles.statsRow}>
+            <StatCard
+              title="This Month"
+              value={`$${stats.revenueThisMonth.toLocaleString()}`}
+              icon="cash-multiple"
+              containerStyle={styles.statCardLeft}
+            />
+            <StatCard
+              title="All Time"
+              value={`$${stats.totalRevenue.toLocaleString()}`}
+              icon="chart-line"
+              containerStyle={styles.statCardRight}
+            />
+          </View>
         </View>
-      )}
+      </View>
 
       {/* Quick Actions */}
       <QuickActions actions={quickActions} />
@@ -369,6 +433,7 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     padding: 16,
+    paddingBottom: 8,
     backgroundColor: 'transparent',
   },
   statsRow: {
@@ -384,13 +449,25 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 6,
   },
-  keyMetricContainer: {
+  sectionContainer: {
     paddingHorizontal: 16,
     marginBottom: 16,
     backgroundColor: 'transparent',
   },
-  keyMetricCard: {
-    width: '100%',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  revenueGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    backgroundColor: 'transparent',
+  },
+  revenueCard: {
+    width: (width - 40) / 2, // 2 columns with padding
+    marginBottom: 8,
   },
   footer: {
     height: Platform.OS === 'ios' ? 30 : 20,

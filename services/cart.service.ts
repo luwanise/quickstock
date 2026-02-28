@@ -49,6 +49,30 @@ export const cartService = {
         }
     },
 
+    // Get all carts for a user (for revenue calculations)
+    async getAllCarts(userId: string) {
+        try {
+            const { data, error } = await supabase
+                .from('carts')
+                .select(`
+                    *,
+                    items:cart_items(
+                        *,
+                        item:items(item_name, stock_quantity)
+                    )
+                `)
+                .eq('user_id', userId)
+                .in('status', ['active', 'completed'])
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            return { data, error: null };
+
+        } catch (error) {
+            return { data: null, error };
+        }
+    },
+
     // Get cart details
     async getCartWithItems(cartId: string) {
         try {
