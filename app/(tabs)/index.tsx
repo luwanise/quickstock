@@ -75,73 +75,119 @@ export default function DashboardScreen() {
 
     try {
       setError(null);
-      
-      // Load all carts (completed and active) for revenue calculations
-      const { data: allCartsData, error: allCartsError } = await cartService.getAllCarts(
-        session.user.id
-      );
-      
+
+      // Load all carts (completed + active)
+      const { data: allCartsData, error: allCartsError } =
+        await cartService.getAllCarts(session.user.id);
+
       if (allCartsError) throw allCartsError;
       setAllCarts(allCartsData || []);
 
-      // Load active carts separately for the CartContext
+      // Load active carts for context
       await loadCarts();
 
       // Load items for low stock alerts
-      const { data: itemsData, error: itemsError } = await cartService.searchItems(
-        session.user.id,
-        ''
-      );
-      
+      const { data: itemsData, error: itemsError } =
+        await cartService.searchItems(session.user.id, '');
+
       if (itemsError) throw itemsError;
       setItems(itemsData || []);
 
-      // Get today's date boundaries
       const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
-      
-      // Get week boundaries (last 7 days)
-      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).toISOString();
-      
-      // Get month boundaries
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
-      // Calculate stats using all carts data
-      const activeCarts = allCartsData?.filter(c => c.status === 'active') || [];
-      
-      const completedToday = allCartsData?.filter(c => {
-        if (!c.completed_at) return false;
-        return c.completed_at >= todayStart && c.completed_at < todayEnd;
-      }) || [];
+      // ---------------------------
+      // Date boundaries (UTC safe)
+      // ---------------------------
 
-      // Revenue calculations
-      const totalRevenue = allCartsData?.reduce((sum, cart) => sum + (cart.total_amount || 0), 0) || 0;
-      
-      const revenueToday = allCartsData?.filter(c => 
-        c.completed_at && c.completed_at >= todayStart && c.completed_at < todayEnd
-      ).reduce((sum, cart) => sum + (cart.total_amount || 0), 0) || 0;
-      
-      const revenueThisWeek = allCartsData?.filter(c => 
-        c.completed_at && c.completed_at >= weekStart
-      ).reduce((sum, cart) => sum + (cart.total_amount || 0), 0) || 0;
-      
-      const revenueThisMonth = allCartsData?.filter(c => 
-        c.completed_at && c.completed_at >= monthStart && c.completed_at <= monthEnd
-      ).reduce((sum, cart) => sum + (cart.total_amount || 0), 0) || 0;
+      const todayStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate()
+      ).toISOString();
 
-      const lowStockItems = itemsData?.filter(
-        item => item.stock_quantity <= item.low_stock_threshold
-      ) || [];
-      
-      // Calculate average cart value based on completed carts only (more accurate)
-      const completedCarts = allCartsData?.filter(c => c.status === 'completed') || [];
-      const totalCompletedRevenue = completedCarts.reduce((sum, cart) => sum + (cart.total_amount || 0), 0);
-      const averageCartValue = completedCarts.length > 0 
-        ? Math.round(totalCompletedRevenue / completedCarts.length) 
-        : 0;
-      
+      const tomorrowStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1
+      ).toISOString();
+
+      const weekStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 7
+      ).toISOString();
+
+      const monthStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1
+      ).toISOString();
+
+      const nextMonthStart = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        1
+      ).toISOString();
+
+      // ---------------------------
+      // Derived datasets
+      // ---------------------------
+
+      const activeCarts =
+        allCartsData?.filter(c => c.status === 'active') || [];
+
+      const completedCarts =
+        allCartsData?.filter(c => c.status === 'completed') || [];
+
+      const completedToday =
+        completedCarts.filter(c =>
+          c.completed_at &&
+          c.completed_at >= todayStart &&
+          c.completed_at < tomorrowStart
+        );
+
+      const revenueToday =
+        completedCarts
+          .filter(c =>
+            c.completed_at &&
+            c.completed_at >= todayStart &&
+            c.completed_at < tomorrowStart
+          )
+          .reduce((sum, cart) => sum + (cart.total_amount || 0), 0);
+
+      const revenueThisWeek =
+        completedCarts
+          .filter(c =>
+            c.completed_at &&
+            c.completed_at >= weekStart
+          )
+          .reduce((sum, cart) => sum + (cart.total_amount || 0), 0);
+
+      const revenueThisMonth =
+        completedCarts
+          .filter(c =>
+            c.completed_at &&
+            c.completed_at >= monthStart &&
+            c.completed_at < nextMonthStart
+          )
+          .reduce((sum, cart) => sum + (cart.total_amount || 0), 0);
+
+      const totalRevenue =
+        completedCarts.reduce(
+          (sum, cart) => sum + (cart.total_amount || 0),
+          0
+        );
+
+      const lowStockItems =
+        itemsData?.filter(
+          item => item.stock_quantity <= item.low_stock_threshold
+        ) || [];
+
+      const averageCartValue =
+        completedCarts.length > 0
+          ? Math.round(totalRevenue / completedCarts.length)
+          : 0;
+
       setStats({
         totalCarts: activeCarts.length,
         completedToday: completedToday.length,
@@ -153,7 +199,10 @@ export default function DashboardScreen() {
         revenueThisMonth,
       });
 
-      // Generate recent activity from all cart data (mix of active and completed)
+      // ---------------------------
+      // Recent Activity
+      // ---------------------------
+
       const activities: Activity[] = (allCartsData || [])
         .sort((a, b) => {
           const dateA = new Date(a.completed_at || a.created_at);
@@ -161,7 +210,7 @@ export default function DashboardScreen() {
           return dateB.getTime() - dateA.getTime();
         })
         .slice(0, 5)
-        .map((cart) => ({
+        .map(cart => ({
           id: cart.id,
           type: cart.completed_at ? 'cart_completed' : 'cart_created',
           customerName: cart.customer_name,
@@ -174,7 +223,10 @@ export default function DashboardScreen() {
     } catch (error: any) {
       console.error('Error loading dashboard:', error);
       setError(error.message || 'Failed to load dashboard data');
-      Alert.alert('Error', 'Failed to load dashboard data. Pull down to refresh.');
+      Alert.alert(
+        'Error',
+        'Failed to load dashboard data. Pull down to refresh.'
+      );
     } finally {
       setIsInitialLoad(false);
     }
