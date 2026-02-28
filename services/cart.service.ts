@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { AddToCartPayload, UpdateCartItemPayload } from '@/models/cart';
 
 export const cartService = {
+
     // Create a new cart
     async createCart(userId: string, customerName: string, notes?: string) {
         try {
@@ -18,6 +19,7 @@ export const cartService = {
 
             if (error) throw error;
             return { data, error: null };
+
         } catch (error) {
             return { data: null, error };
         }
@@ -41,13 +43,14 @@ export const cartService = {
 
             if (error) throw error;
             return { data, error: null };
+
         } catch (error) {
             return { data: null, error };
         }
     },
 
-    // Get cart details with items
-    async getCartWithItems(cartId: String) {
+    // Get cart details
+    async getCartWithItems(cartId: string) {
         try {
             const { data, error } = await supabase
                 .from('carts')
@@ -63,57 +66,29 @@ export const cartService = {
 
             if (error) throw error;
             return { data, error: null };
+
         } catch (error) {
             return { data: null, error };
         }
     },
 
-    // Add item to cart
+    // Add item to cart (uses atomic RPC)
     async addToCart(payload: AddToCartPayload) {
         try {
-            // First check if item already exists in cart
-            const { data: existing } = await supabase
-                .from('cart_items')
-                .select('*')
-                .eq('cart_id', payload.cart_id)
-                .eq('item_id', payload.item_id)
-                .single();
 
-            if (existing) {
-                // Update quantity instead of inserting
-                return await this.updateCartItemQuantity({
-                    cart_item_id: existing.id,
-                    quantity: existing.quantity + payload.quantity
-                });
-            }
-
-            // Get current item price
-            const { data: item } = await supabase
-                .from('items')
-                .select('price')
-                .eq('id', payload.item_id)
-                .single();
-
-            if (!item) throw new Error('Item not found');
-
-            const { data, error } = await supabase
-                .from('cart_items')
-                .insert([{
-                    cart_id: payload.cart_id,
-                    item_id: payload.item_id,
-                    quantity: payload.quantity,
-                    price_at_time: item.price
-                }])
-                .select()
-                .single();
+            const { error } = await supabase.rpc('add_to_cart', {
+                p_cart_id: payload.cart_id,
+                p_item_id: payload.item_id,
+                p_quantity: payload.quantity
+            });
 
             if (error) throw error;
 
-            // Update cart total
             await this.updateCartTotal(payload.cart_id);
 
-            return { data, error: null };
-        } catch (error) {
+            return { data: true, error: null };
+
+        } catch (error: any) {
             return { data: null, error };
         }
     },
@@ -121,21 +96,29 @@ export const cartService = {
     // Update cart item quantity
     async updateCartItemQuantity(payload: UpdateCartItemPayload) {
         try {
-            const { data, error } = await supabase
+
+            // Get cart_id first
+            const { data: existing, error: fetchError } = await supabase
                 .from('cart_items')
-                .update({ quantity: payload.quantity })
+                .select('cart_id')
                 .eq('id', payload.cart_item_id)
-                .select()
                 .single();
 
-            if (error) throw error;
+            if (fetchError) throw fetchError;
 
-            // Get cart_id to update total
-            if (data) {
-                await this.updateCartTotal(data.cart_id);
-            }
+            // Update quantity
+            const { error: updateError } = await supabase
+                .from('cart_items')
+                .update({ quantity: payload.quantity })
+                .eq('id', payload.cart_item_id);
 
-            return { data, error: null };
+            if (updateError) throw updateError;
+
+            // Recalculate total
+            await this.updateCartTotal(existing.cart_id);
+
+            return { data: true, error: null };
+
         } catch (error) {
             return { data: null, error };
         }
@@ -144,6 +127,7 @@ export const cartService = {
     // Remove item from cart
     async removeFromCart(cartItemId: string, cartId: string) {
         try {
+
             const { error } = await supabase
                 .from('cart_items')
                 .delete()
@@ -151,70 +135,52 @@ export const cartService = {
 
             if (error) throw error;
 
-            // Update cart total
             await this.updateCartTotal(cartId);
 
             return { error: null };
+
         } catch (error) {
             return { error };
         }
     },
 
-    // Update cart total
+    // Recalculate cart total via SQL function
     async updateCartTotal(cartId: string) {
-        try {
-            const { data: items } = await supabase
-                .from('cart_items')
-                .select('subtotal')
-                .eq('cart_id', cartId);
+        const { error } = await supabase.rpc('update_cart_total', {
+            p_cart_id: cartId
+        });
 
-            const total = items?.reduce((sum, item) => sum + (item.subtotal || 0), 0) || 0;
-
-            const { error } = await supabase
-                .from('carts')
-                .update({ 
-                    total_amount: total,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', cartId);
-
-            if (error) throw error;
-        } catch (error) {
-            console.error('Error updating cart total:', error);
-        }
+        if (error) throw error;
     },
 
-    // Complete cart (payment received)
+    // Complete cart
     async completeCart(cartId: string, reduceInventory: boolean = true) {
         try {
-            // Start a transaction
+
             if (reduceInventory) {
-                // Get cart items
-                const { data: items } = await supabase
+                const { data: items, error: itemsError } = await supabase
                     .from('cart_items')
                     .select('item_id, quantity')
                     .eq('cart_id', cartId);
 
-                if (items) {
-                    // Reduce inventory for each item
-                    for (const item of items) {
-                        const { error: updateError } = await supabase.rpc(
-                            'decrement_item_stock',
-                            { 
-                                item_id: item.item_id, 
-                                quantity: item.quantity 
-                            }
-                        );
+                if (itemsError) throw itemsError;
 
-                        if (updateError) throw updateError;
-                    }
+                for (const item of items || []) {
+                    const { error: updateError } = await supabase.rpc(
+                        'decrement_item_stock',
+                        {
+                            item_id: item.item_id,
+                            quantity: item.quantity
+                        }
+                    );
+
+                    if (updateError) throw updateError;
                 }
             }
 
-            // Update cart status
             const { data, error } = await supabase
                 .from('carts')
-                .update({ 
+                .update({
                     status: 'completed',
                     completed_at: new Date().toISOString()
                 })
@@ -223,13 +189,15 @@ export const cartService = {
                 .single();
 
             if (error) throw error;
+
             return { data, error: null };
+
         } catch (error) {
             return { data: null, error };
         }
     },
 
-    // Delete/cancel cart
+    // Cancel cart
     async deleteCart(cartId: string) {
         try {
             const { error } = await supabase
@@ -238,13 +206,15 @@ export const cartService = {
                 .eq('id', cartId);
 
             if (error) throw error;
+
             return { error: null };
+
         } catch (error) {
             return { error };
         }
     },
 
-    // Search items for adding to cart
+    // Search items
     async searchItems(userId: string, searchTerm: string) {
         try {
             const { data, error } = await supabase
@@ -256,7 +226,9 @@ export const cartService = {
                 .limit(10);
 
             if (error) throw error;
+
             return { data, error: null };
+
         } catch (error) {
             return { data: null, error };
         }

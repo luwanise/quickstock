@@ -20,7 +20,7 @@ export interface NewCart {
 }
 
 export interface CartItem {
-    id: number;
+    id: string;
     cart_id: string;
     item_id: string;
     quantity: number;

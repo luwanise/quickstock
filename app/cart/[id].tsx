@@ -18,15 +18,28 @@ import Loading from '@/components/common/Loading';
 import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/hooks/useAuth';
+import { AddToCartPayload, Cart, CartItem } from '@/models/cart';
 import { Item } from '@/models/item';
 import { cartService } from '@/services/cart.service';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function CartDetailScreen() {
   const { id } = useLocalSearchParams();
+  const cartId = Array.isArray(id) ? id[0] : id;
+  
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const { activeCart, updateQuantity, removeFromCart, completeCart } = useCart();
+  
+  const {
+    activeCart, 
+    setActiveCart,
+    updateQuantity, 
+    removeFromCart, 
+    completeCart,
+  } = useCart();
+  
+  const { session } = useAuth();
   
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,38 +48,73 @@ export default function CartDetailScreen() {
   const [quantityModalVisible, setQuantityModalVisible] = useState(false);
   const [quantity, setQuantity] = useState('1');
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [cartData, setCartData] = useState<Cart | null>(null);
 
-  useEffect(() => {
-    if (!activeCart && id) {
-      // Load cart if not already loaded
-      loadCart();
-    }
-  }, [id]);
-
+  // Load cart if not in context
   const loadCart = async () => {
-    const { data } = await cartService.getCartWithItems(String(id));
-    if (data) {
-      // Set as active cart
+    if (!cartId) return;
+    
+    setIsLoading(true);
+    const { data, error } = await cartService.getCartWithItems(cartId);
+    
+    if (error) {
+      Alert.alert('Error', 'Failed to load cart');
+    } else if (data) {
+      setCartData(data);
+
+      if (setActiveCart) {
+        setActiveCart(data);
+      }
     }
+    setIsLoading(false);
   };
 
+  useEffect(() => {
+    if (!activeCart && cartId) {
+      loadCart();
+    } else if (activeCart) {
+      setCartData(activeCart);
+      setIsLoading(false);
+    }
+  }, [cartId, activeCart]);
+
+  // Fix 4: Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.length >= 1) {
+        searchItems(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const searchItems = async (query: string) => {
-    if (query.length < 2) {
-      setSearchResults([]);
+    if (!session?.user?.id) {
+      Alert.alert('Error', 'User not authenticated');
       return;
     }
 
     setIsSearching(true);
-    const { data } = await cartService.searchItems('user-id', query); // Replace with actual user ID
-    setSearchResults(data || []);
-    setIsSearching(false);
+    try {
+      const { data, error } = await cartService.searchItems(session.user.id, query);
+      if (error) throw error;
+      setSearchResults(data || []);
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
-  const handleAddToCart = () => {
-    if (!selectedItem || !quantity) return;
+  const handleAddToCart = async () => {
+    if (!selectedItem || !quantity || !cartId) return;
     
     const qty = parseInt(quantity);
-    if (qty < 1) {
+    if (isNaN(qty) || qty < 1) {
       Alert.alert('Error', 'Quantity must be at least 1');
       return;
     }
@@ -76,35 +124,66 @@ export default function CartDetailScreen() {
       return;
     }
 
-    // Add to cart
-    // This will be implemented with the cart service
-    
-    setQuantityModalVisible(false);
-    setSearchModalVisible(false);
-    setSelectedItem(null);
-    setQuantity('1');
+    const payload: AddToCartPayload = {
+      cart_id: cartId,
+      item_id: selectedItem.id,
+      quantity: qty,
+    };
+
+    try {
+      const { error } = await cartService.addToCart(payload);
+      
+      if (error) throw error;
+      
+      // Fix 5: Refresh cart data after adding item
+      await loadCart();
+      
+      Alert.alert('Success', 'Item added to cart');
+      setQuantityModalVisible(false);
+      setSearchModalVisible(false);
+      setSelectedItem(null);
+      setQuantity('1');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to add item');
+    }
   };
 
-  const handleUpdateQuantity = (cartItemId: string, newQuantity: number) => {
+  const handleUpdateQuantity = async (cartItemId: string, newQuantity: number) => {
+    if (!cartId) return;
+
     if (newQuantity < 1) {
-      removeFromCart(cartItemId);
+      // Fix 6: Handle removal properly
+      const { error } = await removeFromCart(cartItemId);
+      if (!error) {
+        await loadCart(); // Refresh data
+      }
     } else {
-      updateQuantity(cartItemId, newQuantity);
+      // Fix 7: Update quantity and refresh
+      const { error } = await updateQuantity(cartItemId, newQuantity);
+      if (!error) {
+        await loadCart(); // Refresh data
+      }
     }
   };
 
   const handleCheckout = () => {
+    if (!cartData?.total_amount) return;
+
     Alert.alert(
       'Complete Checkout',
-      `Total amount: $${activeCart?.total_amount.toLocaleString()}\n\nThis will reduce inventory and mark the cart as paid.`,
+      `Total amount: ${formatCurrency(cartData.total_amount)}\n\nThis will reduce inventory and mark the cart as paid.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Complete Payment',
           style: 'default',
           onPress: async () => {
-            await completeCart();
-            router.back();
+            try {
+              await completeCart();
+              router.back();
+            } catch (error) {
+              Alert.alert('Error', 'Failed to complete checkout');
+            }
           },
         },
       ]
@@ -115,69 +194,93 @@ export default function CartDetailScreen() {
     return `$${amount.toLocaleString()}`;
   };
 
-  const renderCartItem = ({ item }: { item: any }) => (
-    <LinearGradient
-      colors={colorScheme === 'dark' 
-        ? ['#2c2c2e', '#1c1c1e']
-        : ['#ffffff', '#f8f9fa']}
-      style={[styles.cartItem, { borderColor: theme.border }]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <View style={styles.cartItemHeader}>
-        <View style={styles.itemInfo}>
-          <Text style={styles.itemName}>{item.item?.item_name}</Text>
-          <Text style={[styles.itemPrice, { color: theme.textSecondary }]}>
-            {formatCurrency(item.price_at_time)} each
-          </Text>
-        </View>
-        <TouchableOpacity onPress={() => removeFromCart(item.id)}>
-          <MaterialCommunityIcons name="trash-can" size={20} color={theme.danger} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.cartItemFooter}>
-        <View style={styles.quantityControl}>
-          <TouchableOpacity
-            onPress={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-            style={[styles.quantityButton, { borderColor: theme.border }]}
+  const renderCartItem = ({ item }: { item: CartItem }) => {
+    const stockQuantity = item.item?.stock_quantity ?? 0;
+    const itemName = item.item?.item_name ?? 'Unknown Item';
+    
+    return (
+      <LinearGradient
+        colors={colorScheme === 'dark' 
+          ? ['#2c2c2e', '#1c1c1e']
+          : ['#ffffff', '#f8f9fa']}
+        style={[styles.cartItem, { borderColor: theme.border }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.cartItemHeader}>
+          <View style={styles.itemInfo}>
+            <Text style={styles.itemName}>{itemName}</Text>
+            <Text style={[styles.itemPrice, { color: theme.textSecondary }]}>
+              {formatCurrency(item.price_at_time)} each
+            </Text>
+          </View>
+          <TouchableOpacity 
+            onPress={async () => {
+              const { error } = await removeFromCart(item.id);
+              if (!error) await loadCart();
+            }}
           >
-            <MaterialCommunityIcons name="minus" size={16} color={theme.text} />
-          </TouchableOpacity>
-          
-          <Text style={styles.quantityText}>{item.quantity}</Text>
-          
-          <TouchableOpacity
-            onPress={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-            style={[styles.quantityButton, { borderColor: theme.border }]}
-            disabled={item.quantity >= item.item?.stock_quantity}
-          >
-            <MaterialCommunityIcons 
-              name="plus" 
-              size={16} 
-              color={item.quantity >= item.item?.stock_quantity ? theme.textSecondary : theme.text} 
-            />
+            <MaterialCommunityIcons name="trash-can" size={20} color={theme.danger} />
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.itemSubtotal, { color: theme.tint }]}>
-          {formatCurrency(item.subtotal)}
-        </Text>
-      </View>
+        <View style={styles.cartItemFooter}>
+          <View style={styles.quantityControl}>
+            <TouchableOpacity
+              onPress={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+              style={[styles.quantityButton, { borderColor: theme.border }]}
+            >
+              <MaterialCommunityIcons name="minus" size={16} color={theme.text} />
+            </TouchableOpacity>
+            
+            <Text style={styles.quantityText}>{item.quantity}</Text>
+            
+            <TouchableOpacity
+              onPress={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+              style={[styles.quantityButton, { borderColor: theme.border }]}
+              disabled={item.quantity >= stockQuantity}
+            >
+              <MaterialCommunityIcons 
+                name="plus" 
+                size={16} 
+                color={item.quantity >= stockQuantity ? theme.textSecondary : theme.text} 
+              />
+            </TouchableOpacity>
+          </View>
 
-      {item.quantity > item.item?.stock_quantity && (
-        <View style={[styles.warningBadge, { backgroundColor: theme.warning + '20' }]}>
-          <MaterialCommunityIcons name="alert" size={14} color={theme.warning} />
-          <Text style={[styles.warningText, { color: theme.warning }]}>
-            Only {item.item?.stock_quantity} in stock
+          <Text style={[styles.itemSubtotal, { color: theme.tint }]}>
+            {formatCurrency(item.quantity * item.price_at_time)}
           </Text>
         </View>
-      )}
-    </LinearGradient>
-  );
 
-  if (!activeCart) {
+        {item.quantity > stockQuantity && (
+          <View style={[styles.warningBadge, { backgroundColor: theme.warning + '20' }]}>
+            <MaterialCommunityIcons name="alert" size={14} color={theme.warning} />
+            <Text style={[styles.warningText, { color: theme.warning }]}>
+              Only {stockQuantity} in stock
+            </Text>
+          </View>
+        )}
+      </LinearGradient>
+    );
+  };
+
+  // Show loading state
+  if (isLoading) {
     return <Loading text="Loading cart..." />;
+  }
+
+  // Show empty state if no cart
+  if (!cartData) {
+    return (
+      <View style={styles.container}>
+        <EmptyState
+          text="Cart not found"
+          description="This cart may have been deleted"
+          icon="cart-remove"
+        />
+      </View>
+    );
   }
 
   return (
@@ -188,10 +291,10 @@ export default function CartDetailScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{activeCart.customer_name}</Text>
-          {activeCart.notes && (
+          <Text style={styles.headerTitle}>{cartData.customer_name}</Text>
+          {cartData.notes && (
             <Text style={[styles.headerNotes, { color: theme.textSecondary }]}>
-              {activeCart.notes}
+              {cartData.notes}
             </Text>
           )}
         </View>
@@ -202,7 +305,7 @@ export default function CartDetailScreen() {
 
       {/* Items List */}
       <FlatList
-        data={activeCart.items || []}
+        data={cartData.items || []}
         renderItem={renderCartItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
@@ -217,18 +320,18 @@ export default function CartDetailScreen() {
       />
 
       {/* Footer with total and checkout */}
-      {activeCart.items && activeCart.items.length > 0 && (
+      {cartData.items && cartData.items.length > 0 && (
         <View style={[styles.footer, { borderTopColor: theme.border }]}>
           <View style={styles.totalSection}>
             <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>
               Total
             </Text>
             <Text style={[styles.totalAmount, { color: theme.tint }]}>
-              {formatCurrency(activeCart.total_amount)}
+              {formatCurrency(cartData.total_amount)}
             </Text>
           </View>
           <Button
-            title="PAID ✓"
+            title="PAID"
             variant="primary"
             iconName="check"
             onPress={handleCheckout}
@@ -237,7 +340,7 @@ export default function CartDetailScreen() {
         </View>
       )}
 
-      {/* Search Items Modal */}
+      {/* Search Items Modal (unchanged) */}
       <Modal
         visible={searchModalVisible}
         animationType="slide"
@@ -270,10 +373,7 @@ export default function CartDetailScreen() {
               placeholder="Search items..."
               placeholderTextColor={theme.textSecondary}
               value={searchQuery}
-              onChangeText={(text) => {
-                setSearchQuery(text);
-                searchItems(text);
-              }}
+              onChangeText={setSearchQuery}
               autoFocus
             />
           </View>
@@ -322,7 +422,7 @@ export default function CartDetailScreen() {
         </View>
       </Modal>
 
-      {/* Quantity Selection Modal */}
+      {/* Quantity Selection Modal (unchanged) */}
       <Modal
         visible={quantityModalVisible}
         transparent={true}
@@ -400,7 +500,9 @@ export default function CartDetailScreen() {
   );
 }
 
+// Keep your existing styles
 const styles = StyleSheet.create({
+  // ... your existing styles (unchanged)
   container: {
     flex: 1,
   },

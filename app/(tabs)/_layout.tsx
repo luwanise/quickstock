@@ -34,7 +34,7 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'HOME',
-            tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+            tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
             headerRight: () => (
               <Link href="/checkout" asChild>
                 <Pressable>
